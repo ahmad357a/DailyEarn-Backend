@@ -59,6 +59,9 @@ const ALLOWED_ORIGINS = [
   'https://easyearn-frontend-production-5a04.up.railway.app',
   'https://gleaming-miracle-production.up.railway.app',
   'https://easyearn-adminpanel-production.up.railway.app',
+  // New DailyEarn domains
+  'https://dailyearn-frontend-production.up.railway.app',
+  'https://dailyearn-admin-production.up.railway.app',
   // Railway backend (for testing)
   'https://easyearn-backend-production-01ac.up.railway.app',
   // Custom domain
@@ -924,6 +927,29 @@ async function checkAndCompleteReferrals(userId) {
             
             console.log(`✅ Referral completed: User ${user.username} (${userId}) has deposited $${totalDepositAmount}, completing referral from ${referral.referrer}`);
             
+            // Award $1.5 referral bonus to the referrer
+            const referrer = await User.findById(referral.referrer);
+            if (referrer) {
+                const referralBonus = 1.5;
+                referrer.referralEarnings = (referrer.referralEarnings || 0) + referralBonus;
+                referrer.balance = (referrer.balance || 0) + referralBonus;
+                referrer.totalBalance = (referrer.totalBalance || 0) + referralBonus;
+                await referrer.save();
+                
+                console.log(`💰 Referral bonus awarded: $${referralBonus} added to ${referrer.username}'s balance. New balance: $${referrer.balance}`);
+                
+                // Create notification for the referrer
+                const Notification = mongoose.model('Notification');
+                const notification = new Notification({
+                    userId: referrer._id,
+                    type: 'referral_bonus',
+                    title: 'Referral Bonus Earned!',
+                    message: `You earned $${referralBonus} for referring ${user.username}!`,
+                    isRead: false
+                });
+                await notification.save();
+            }
+            
             // Check if referrer should have their withdrawal timer reset
             await resetWithdrawalTimer(referral.referrer);
         }
@@ -977,6 +1003,29 @@ app.get('/verify-email', async (req, res) => {
                     referral.status = 'completed'; // Update referral status to completed
                     await referral.save();
                     console.log(`Referral completed: ${user.referredBy} referred ${user.username} deposit $10`);
+                    
+                    // Award $1.5 referral bonus to the referrer
+                    const referrer = await User.findById(user.referredBy);
+                    if (referrer) {
+                        const referralBonus = 1.5;
+                        referrer.referralEarnings = (referrer.referralEarnings || 0) + referralBonus;
+                        referrer.balance = (referrer.balance || 0) + referralBonus;
+                        referrer.totalBalance = (referrer.totalBalance || 0) + referralBonus;
+                        await referrer.save();
+                        
+                        console.log(`💰 Referral bonus awarded: $${referralBonus} added to ${referrer.username}'s balance. New balance: $${referrer.balance}`);
+                        
+                        // Create notification for the referrer
+                        const Notification = mongoose.model('Notification');
+                        const notification = new Notification({
+                            userId: referrer._id,
+                            type: 'referral_bonus',
+                            title: 'Referral Bonus Earned!',
+                            message: `You earned $${referralBonus} for referring ${user.username}!`,
+                            isRead: false
+                        });
+                        await notification.save();
+                    }
                 } else if (referral) {
                     // Keep referral as pending - will be completed when user deposits $10
                     console.log(`Referral created: ${user.referredBy} referred ${user.username} - status: pending (waiting for $10 deposit)`);
@@ -3203,11 +3252,11 @@ app.post('/api/verify-email', async (req, res) => {
       });
       
       if (referral) {
-        // Update referral status to completed (no bonus given)
+        // Update referral status to completed (no bonus given - bonus only given on $10 deposit)
         referral.status = 'completed';
         await referral.save();
         
-        console.log(`Referral completed: ${user.referredBy} referred ${user.username} (no bonus given)`);
+        console.log(`Referral completed: ${user.referredBy} referred ${user.username} (no bonus given - bonus only given on $10 deposit)`);
       }
     }
     
@@ -3299,7 +3348,7 @@ app.post('/api/admin/verify-user', async (req, res) => {
     user.verificationToken = undefined;
     await user.save();
     
-    // Handle referral bonus if user was referred
+    // Handle referral completion if user was referred
     if (user.referredBy) {
       const referral = await Referral.findOne({ 
         referrer: user.referredBy, 
@@ -3308,11 +3357,11 @@ app.post('/api/admin/verify-user', async (req, res) => {
       });
       
       if (referral) {
-        // Update referral status to completed (no bonus given)
+        // Update referral status to completed (no bonus given - bonus only given on $10 deposit)
         referral.status = 'completed';
         await referral.save();
         
-        console.log(`Referral completed: ${user.referredBy} referred ${user.username} (no bonus given)`);
+        console.log(`Referral completed: ${user.referredBy} referred ${user.username} (no bonus given - bonus only given on $10 deposit)`);
       }
     }
     
