@@ -209,76 +209,12 @@ app.use((req, res, next) => {
   next();
 });
 
-// Single MongoStore instance with enhanced configuration
-const sessionStore = MongoStore.create({
-  mongoUrl: process.env.MONGODB_URI,
-  collectionName: 'sessions',
-  ttl: 60 * 60 * 24 * 14, // 14 days
-  autoRemove: 'native',
-  stringify: false,
-  touchAfter: 24 * 3600, // Only update session once per day
-  // Remove crypto configuration to fix encryption issues
-  // crypto: {
-  //   secret: process.env.SESSION_SECRET || 'fallback-secret-key-change-in-production'
-  // }
-});
+// MongoStore will be created after MongoDB URI validation
+let sessionStore;
 
-// Add session store event listeners for debugging
-sessionStore.on('connect', () => {
-  console.log('✅ MongoStore connected successfully');
-});
+// Session configuration will be set up after MongoStore creation
 
-sessionStore.on('disconnect', () => {
-  console.log('❌ MongoStore disconnected');
-});
-
-sessionStore.on('error', (error) => {
-  console.error('💥 MongoStore error:', error);
-});
-
-sessionStore.on('create', (sessionId) => {
-  console.log('🆕 Session created:', sessionId);
-});
-
-sessionStore.on('destroy', (sessionId) => {
-  console.log('🗑️ Session destroyed:', sessionId);
-});
-
-sessionStore.on('touch', (sessionId) => {
-  console.log('👆 Session touched:', sessionId);
-});
-
-// Session configuration - single source of truth
-app.use(session({
-  name: process.env.SESSION_NAME || 'easyearn.sid',
-  secret: process.env.SESSION_SECRET || 'fallback-secret-key-change-in-production',
-  resave: true,
-  saveUninitialized: true,
-  store: sessionStore,
-  cookie: {
-    httpOnly: true,
-    maxAge: Number(process.env.SESSION_MAX_AGE || 7 * 24 * 60 * 60 * 1000), // 7 days default
-    secure: process.env.NODE_ENV === 'production', // Secure in production (HTTPS)
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // 'none' for cross-domain in production
-    path: '/',
-    domain: process.env.NODE_ENV === 'production' ? undefined : undefined // Let browser set domain
-  }
-}));
-
-// Log session configuration
-console.log('Session configuration:', {
-  name: process.env.SESSION_NAME || 'easyearn.sid',
-  store: 'MongoStore',
-  collectionName: 'sessions',
-  ttl: '14 days',
-  cookie: {
-    httpOnly: true,
-    maxAge: Number(process.env.SESSION_MAX_AGE || 7 * 24 * 60 * 60 * 1000),
-    secure: process.env.NODE_ENV === 'production', // Always secure in production
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // 'none' for cross-domain in production
-    path: '/'
-  }
-});
+// Session configuration logging will be done after setup
 
 app.use(passport.initialize());
 app.use(passport.session());
@@ -609,6 +545,73 @@ if (!mongoURI) {
     console.error("MONGODB_URI is not defined in environment variables");
     process.exit(1);
 }
+
+// Create MongoStore instance after URI validation
+sessionStore = MongoStore.create({
+  mongoUrl: mongoURI,
+  collectionName: 'sessions',
+  ttl: 60 * 60 * 24 * 14, // 14 days
+  autoRemove: 'native',
+  stringify: false,
+  touchAfter: 24 * 3600, // Only update session once per day
+});
+
+// Add session store event listeners for debugging
+sessionStore.on('connect', () => {
+  console.log('✅ MongoStore connected successfully');
+});
+
+sessionStore.on('disconnect', () => {
+  console.log('❌ MongoStore disconnected');
+});
+
+sessionStore.on('error', (error) => {
+  console.error('💥 MongoStore error:', error);
+});
+
+sessionStore.on('create', (sessionId) => {
+  console.log('🆕 Session created:', sessionId);
+});
+
+sessionStore.on('destroy', (sessionId) => {
+  console.log('🗑️ Session destroyed:', sessionId);
+});
+
+sessionStore.on('touch', (sessionId) => {
+  console.log('👆 Session touched:', sessionId);
+});
+
+// Session configuration - single source of truth
+app.use(session({
+  name: process.env.SESSION_NAME || 'easyearn.sid',
+  secret: process.env.SESSION_SECRET || 'fallback-secret-key-change-in-production',
+  resave: true,
+  saveUninitialized: true,
+  store: sessionStore,
+  cookie: {
+    httpOnly: true,
+    maxAge: Number(process.env.SESSION_MAX_AGE || 7 * 24 * 60 * 60 * 1000), // 7 days default
+    secure: process.env.NODE_ENV === 'production', // Secure in production (HTTPS)
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // 'none' for cross-domain in production
+    path: '/',
+    domain: process.env.NODE_ENV === 'production' ? undefined : undefined // Let browser set domain
+  }
+}));
+
+// Log session configuration
+console.log('Session configuration:', {
+  name: process.env.SESSION_NAME || 'easyearn.sid',
+  store: 'MongoStore',
+  collectionName: 'sessions',
+  ttl: '14 days',
+  cookie: {
+    httpOnly: true,
+    maxAge: Number(process.env.SESSION_MAX_AGE || 7 * 24 * 60 * 60 * 1000),
+    secure: process.env.NODE_ENV === 'production', // Always secure in production
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // 'none' for cross-domain in production
+    path: '/'
+  }
+});
 
 // Connect to MongoDB and start server
 mongoose.connect(mongoURI, mongooseOptions)
