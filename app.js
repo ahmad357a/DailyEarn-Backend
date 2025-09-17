@@ -216,9 +216,6 @@ let sessionStore;
 
 // Session configuration logging will be done after setup
 
-app.use(passport.initialize());
-app.use(passport.session());
-
 // Passport Local Strategy Configuration
 passport.use(new LocalStrategy({
     usernameField: 'username',
@@ -613,6 +610,23 @@ console.log('Session configuration:', {
   }
 });
 
+// Health check endpoint for Railway diagnostics
+app.get('/health', (req, res) => {
+    const health = {
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+        environment: {
+            NODE_ENV: process.env.NODE_ENV || 'not set',
+            MONGODB_URI: process.env.MONGODB_URI ? 'Set' : 'NOT SET - THIS IS THE PROBLEM!',
+            SESSION_SECRET: process.env.SESSION_SECRET ? 'Set' : 'Not set',
+            PORT: process.env.PORT || 'not set'
+        },
+        version: '1.0.0'
+    };
+    
+    res.json(health);
+});
+
 // Connect to MongoDB and start server
 mongoose.connect(mongoURI, mongooseOptions)
     .then(() => {
@@ -622,10 +636,12 @@ mongoose.connect(mongoURI, mongooseOptions)
         const PORT = process.env.PORT || 3005;
         app.listen(PORT, "0.0.0.0", () => {
             console.log(`Server is running on port ${PORT}`);
+            console.log(`Health check available at: http://localhost:${PORT}/health`);
         });
     })
     .catch((err) => {
         console.error("Error connecting to MongoDB Atlas:", err);
+        console.error("MONGODB_URI:", process.env.MONGODB_URI ? 'Set' : 'NOT SET');
         process.exit(1);
     });
 
