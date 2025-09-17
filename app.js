@@ -1,4 +1,13 @@
 require('dotenv').config();
+
+// Environment detection - Railway sets RAILWAY_ENVIRONMENT
+const isProduction = process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT === 'production' || process.env.RAILWAY_ENVIRONMENT;
+
+console.log('🔧 Environment Detection:');
+console.log(`   NODE_ENV: ${process.env.NODE_ENV || 'not set'}`);
+console.log(`   RAILWAY_ENVIRONMENT: ${process.env.RAILWAY_ENVIRONMENT || 'not set'}`);
+console.log(`   Is Production: ${isProduction}`);
+
 const bodyParser = require('body-parser');
 const session = require('express-session');
 const MongoStore = require('connect-mongo');
@@ -529,7 +538,7 @@ app.post('/api/login-jwt', function(req, res, next) {
 // MONGOOSE - simplified configuration for stability
 const mongooseOptions = {};
 
-if (process.env.NODE_ENV === 'production') {
+if (isProduction) {
     mongooseOptions.ssl = true;
     mongooseOptions.tls = true;
     mongooseOptions.tlsAllowInvalidCertificates = true;
@@ -588,10 +597,10 @@ app.use(session({
   cookie: {
     httpOnly: true,
     maxAge: Number(process.env.SESSION_MAX_AGE || 7 * 24 * 60 * 60 * 1000), // 7 days default
-    secure: process.env.NODE_ENV === 'production', // Secure in production (HTTPS)
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // 'none' for cross-domain in production
+    secure: isProduction, // Secure in production (HTTPS)
+    sameSite: isProduction ? 'none' : 'lax', // 'none' for cross-domain in production
     path: '/',
-    domain: process.env.NODE_ENV === 'production' ? undefined : undefined // Let browser set domain
+    domain: isProduction ? undefined : undefined // Let browser set domain
   }
 }));
 
@@ -604,8 +613,8 @@ console.log('Session configuration:', {
   cookie: {
     httpOnly: true,
     maxAge: Number(process.env.SESSION_MAX_AGE || 7 * 24 * 60 * 60 * 1000),
-    secure: process.env.NODE_ENV === 'production', // Always secure in production
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // 'none' for cross-domain in production
+    secure: isProduction, // Always secure in production
+    sameSite: isProduction ? 'none' : 'lax', // 'none' for cross-domain in production
     path: '/'
   }
 });
@@ -698,8 +707,8 @@ passport.deserializeUser(async function(id, done) {
 passport.use(new GoogleStrategy({
     clientID: process.env.CLIENT_ID,
     clientSecret: process.env.CLIENT_SECRET,
-    callbackURL: process.env.NODE_ENV === 'production' 
-        ? "https://easyearn-backend-4.onrender.com/auth/google/homepage"
+    callbackURL: isProduction 
+        ? "https://easyearn-backend-production-01ac.up.railway.app/auth/google/homepage"
         : "http://localhost:3000/auth/google/homepage",
     passReqToCallback: true
 },
@@ -1298,8 +1307,8 @@ app.get('/debug/session', (req, res) => {
 app.get('/debug/cookies', (req, res) => {
   // Define cookie settings based on environment
   const cookieSettings = {
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    secure: isProduction,
+    sameSite: isProduction ? 'none' : 'lax',
     httpOnly: true,
     path: '/',
     domain: undefined
@@ -5229,8 +5238,8 @@ app.get('/debug-config', (req, res) => {
       MONGODB_URI: process.env.MONGODB_URI ? 'set' : 'not set',
       sessionStore: 'MongoStore',
       cookieSettings: {
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+        secure: isProduction,
+        sameSite: isProduction ? 'none' : 'lax',
         httpOnly: true,
         maxAge: Number(process.env.SESSION_MAX_AGE || 7 * 24 * 60 * 60 * 1000)
       },
