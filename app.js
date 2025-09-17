@@ -1221,9 +1221,9 @@ app.get('/me', async (req, res) => {
             recovered: true
         });
   } else {
-    // Not authenticated
-        return res.status(401).json({ error: 'Not authenticated' });
-      }
+    // Not authenticated - return null user instead of 401 error
+    return res.json({ user: null });
+  }
 });
 
 app.get('/', (req, res) => {
