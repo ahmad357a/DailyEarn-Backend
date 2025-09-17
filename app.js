@@ -958,8 +958,7 @@ async function checkAndCompleteReferrals(userId) {
                 console.log(`💰 Referral bonus awarded: $${referralBonus} added to ${referrer.username}'s balance. New balance: $${referrer.balance}`);
                 
                 // Create notification for the referrer
-                const Notification = mongoose.model('Notification');
-                const notification = new Notification({
+                const notification = new UserNotification({
                     userId: referrer._id,
                     type: 'referral_bonus',
                     title: 'Referral Bonus Earned!',
@@ -1035,8 +1034,7 @@ app.get('/verify-email', async (req, res) => {
                         console.log(`💰 Referral bonus awarded: $${referralBonus} added to ${referrer.username}'s balance. New balance: $${referrer.balance}`);
                         
                         // Create notification for the referrer
-                        const Notification = mongoose.model('Notification');
-                        const notification = new Notification({
+                        const notification = new UserNotification({
                             userId: referrer._id,
                             type: 'referral_bonus',
                             title: 'Referral Bonus Earned!',
@@ -2588,8 +2586,38 @@ app.put('/api/admin/users/:id/additional-balance', async (req, res) => {
   }
 });
 
-// Notification Schema
-const notificationSchema = new mongoose.Schema({
+// User Notification Schema (for individual user notifications)
+const userNotificationSchema = new mongoose.Schema({
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  title: {
+    type: String,
+    required: true
+  },
+  message: {
+    type: String,
+    required: true
+  },
+  type: {
+    type: String,
+    enum: ['referral_bonus', 'deposit_confirmed', 'withdrawal_approved', 'withdrawal_rejected', 'task_approved', 'general'],
+    default: 'general'
+  },
+  isRead: {
+    type: Boolean,
+    default: false
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
+  }
+});
+
+// Admin Notification Schema (for admin notifications)
+const adminNotificationSchema = new mongoose.Schema({
   title: String,
   message: String,
   type: { type: String, enum: ['general', 'promotion', 'system', 'warning'], default: 'general' },
@@ -2597,7 +2625,9 @@ const notificationSchema = new mongoose.Schema({
   recipientId: String, // For custom user notifications
   createdAt: { type: Date, default: Date.now }
 });
-const Notification = mongoose.model('Notification', notificationSchema);
+
+const UserNotification = mongoose.model('UserNotification', userNotificationSchema);
+const AdminNotification = mongoose.model('AdminNotification', adminNotificationSchema);
 
 // Task Schema
 const taskSchema = new mongoose.Schema({
@@ -2642,7 +2672,7 @@ app.post('/api/admin/notifications', async (req, res) => {
     }
 
     // Create notification
-    const notification = new Notification({ 
+    const notification = new AdminNotification({ 
       title, 
       message, 
       type: type || 'general',
@@ -2710,7 +2740,7 @@ app.get('/api/admin/notifications', async (req, res) => {
   }
   
   try {
-    const notifications = await Notification.find({}).sort({ createdAt: -1 });
+    const notifications = await AdminNotification.find({}).sort({ createdAt: -1 });
     res.json({ success: true, notifications });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch notifications', details: err.message });
@@ -2863,7 +2893,7 @@ app.get('/api/admin/dashboard-stats', async (req, res) => {
 // Get all notifications (for admin)
 app.get('/api/notifications', async (req, res) => {
   try {
-    const notifications = await Notification.find({}).sort({ createdAt: -1 });
+    const notifications = await AdminNotification.find({}).sort({ createdAt: -1 });
     res.json({ notifications });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch notifications', details: err.message });
@@ -2876,7 +2906,12 @@ app.get('/api/user/notifications', ensureAuthenticated, async (req, res) => {
     const userId = req.user._id;
     
     // Get notifications that apply to this user
-    const notifications = await Notification.find({
+    const notifications = await UserNotification.find({
+      userId: userId
+    }).sort({ createdAt: -1 });
+    
+    // Also get admin notifications that apply to this user
+    const adminNotifications = await AdminNotification.find({
       $or: [
         { recipientType: 'all_users' },
         { recipientType: 'active_users' },
@@ -2885,7 +2920,10 @@ app.get('/api/user/notifications', ensureAuthenticated, async (req, res) => {
       ]
     }).sort({ createdAt: -1 }).limit(20);
     
-    res.json({ success: true, notifications });
+    // Combine user notifications and admin notifications
+    const allNotifications = [...notifications, ...adminNotifications].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    
+    res.json({ success: true, notifications: allNotifications });
   } catch (err) {
     console.error('Error fetching user notifications:', err);
     res.status(500).json({ error: 'Failed to fetch notifications', details: err.message });
